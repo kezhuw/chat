@@ -462,13 +462,11 @@ verifier_unicast(struct verifier *v, const char *buf, size_t len, const struct s
 
 static void
 verifier_mulcast(struct verifier *v, const char *buf, size_t len, struct session *owner) {
-	printf("%s:%s:%d\n", __FILE__, __func__, __LINE__);
 	struct session **clients = v->clients;
 	size_t i=0, n=v->maxfd;
 	while (i<=n) {
 		struct session *s = clients[i];
-		if (s != NULL && s != owner && s->fd != -1) {
-	printf("%s:%s:%d\n", __FILE__, __func__, __LINE__);
+		if (s != NULL && s != owner && s->fd != -1 && s->state == SessionStateNorm) {
 			session_write_buffer(s, buf, len);
 		}
 		i++;
@@ -679,7 +677,7 @@ kevent_del(int eventfd, int fd, int filter) {
 int
 main(int argc, char *argv[]) {
 	setvbuf(stdout, NULL, _IONBF, 0);
-	if (argc < 3) {
+	if (argc < 2) {
 		printf("usage: server server_addr.\n");
 		exit(0);
 	}

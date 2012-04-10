@@ -124,15 +124,10 @@ retry:
 		spipe_writen(c->rpipe, (size_t)rcv);
 	} while ((size_t)rcv == len);
 	for (;;) {
-		len = spipe_readv(c->rpipe, v);
-		if (len > 4) {
-			size_t sz = iovec_read_uint32(v);
-			if (sz >= spipe_space(c->rpipe)) {
-				client_recvmsg(c, sz);
-			} else {
-				break;
-			}
-		}
+		if (spipe_readv(c->rpipe, v) <= 4) break;
+		size_t rcvlen = iovec_read_uint32(v);
+		if (rcvlen > spipe_space(c->rpipe)) break;
+		client_recvmsg(c, rcvlen);
 	}
 }
 
@@ -356,7 +351,7 @@ struct input {
 
 static void
 input_read(struct input *in) {
-	static char buf[2048];
+	char buf[2048];
 	for (;;) {
 		ssize_t n = read(in->fd, buf, sizeof(buf));
 		if (n == -1) {
@@ -414,11 +409,10 @@ main(int argc, char *argv[]) {
 	struct input in;
 	input_init(&in, &out);
 
-	struct kevent ev;
-	EV_SET(&ev, STDIN_FILENO, EVFILT_READ, EV_ADD, 0, 0, &in.udata);
-	kevent(eventfd, &ev, 1, NULL, 0, NULL);
+	struct kevent ev[4];
+	EV_SET(&ev[0], STDIN_FILENO, EVFILT_READ, EV_ADD, 0, 0, &in.udata);
+	kevent(eventfd, ev, 1, NULL, 0, NULL);
 	for (;;) {
-		struct kevent ev[4];
 		int n = kevent(eventfd, NULL, 0, ev, 4, NULL);
 		if (n != -1) {
 			int i;

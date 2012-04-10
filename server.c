@@ -238,6 +238,17 @@ session_do_auth(struct session *s, const char *msg, size_t len) {
 	*((uint16_t*)(sndbuf+4)) = MessageTypeAuth;
 	strcpy(sndbuf+6, authsucc_string);
 	session_write_buffer(s, sndbuf, sndlen);
+
+	const char welstr[] = " has joined.";
+	size_t wellen = sizeof(welstr)-1;
+	sndlen = 6 + s->name.len + wellen + 1;
+	*((uint32_t*)sndbuf) = (uint32_t)sndlen;
+	*((uint16_t*)(sndbuf+4)) = MessageTypeChat;
+	memcpy(sndbuf+6, s->name.str, s->name.len);
+	memcpy(sndbuf+6+s->name.len, welstr, wellen);
+	*(sndbuf+6+s->name.len+wellen) = '\0';
+	verifier_mulcast(s->verifier, sndbuf, sndlen, s);
+
 	s->state = SessionStateNorm;
 }
 

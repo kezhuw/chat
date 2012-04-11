@@ -111,7 +111,8 @@ retry:
 			switch (errno) {
 			default:
 			case ECONNRESET:
-				catch_term(0);
+				close(c->fd);
+				exit(0);
 			case EWOULDBLOCK:
 				break;
 			case EINTR:
@@ -119,6 +120,8 @@ retry:
 			}
 		}
 		if (rcv == 0) {
+			close(c->fd);
+			exit(0);
 			break;
 		}
 		spipe_writen(c->rpipe, (size_t)rcv);
@@ -143,7 +146,8 @@ client_do_send(struct client *c) {
 			int error = errno;
 			switch (error) {
 			case ECONNRESET:
-				catch_term(0);
+				close(c->fd);
+				exit(0);
 			case EWOULDBLOCK:
 				return;
 			case EINTR:
@@ -162,8 +166,7 @@ client_do_send(struct client *c) {
 
 static void
 client_write_buffer(struct client *c, const char *buf, size_t len) {
-	struct iovec v[2];
-	if (!spipe_readv(c->wpipe, v)) {
+	if (spipe_space(c->wpipe) == 0) {
 		ssize_t n;
 retry:
 		n = send(c->fd, buf, len, 0);
@@ -338,7 +341,7 @@ client_init(struct client *c, int conn, int eventfd) {
 	regex_comp(&c->member_regexp, member_pattern);
 	regex_comp(&c->logout_regexp, logout_pattern);
 	struct kevent e;
-	EV_SET(&e, conn, EVFILT_READ, EV_ADD, 0, 0, &c->udata);
+	EV_SET(&e, conn, EVFILT_READ, EV_ADD|EV_CLEAR, 0, 0, &c->udata);
 	kevent(eventfd, &e, 1, NULL, 0, NULL);
 }
 

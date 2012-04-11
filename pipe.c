@@ -18,7 +18,6 @@ struct spipe {
 
 	// reader
 	char *rpos;
-	size_t rlen;
 
 	// writer
 	char *wpos;
@@ -128,7 +127,6 @@ spipe_cwake(struct spipe *s) {
 }
 
 // Caller need to ensure than n is smaller than value returned from readv().
-// Called after readv, so if (s->rseq == s->wseq), n must lte s->rlen.
 void
 spipe_readn(struct spipe *s, size_t n) {
 	assert(n%s->blocksize == 0);

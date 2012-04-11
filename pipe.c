@@ -2,6 +2,7 @@
 #include "pipe.h"
 
 #include <sys/socket.h>
+#include <unistd.h>
 
 #include <errno.h>
 #include <stddef.h>
@@ -260,6 +261,7 @@ spipe_writev(struct spipe *s, struct iovec v[2]) {
 
 struct bpipe {
 	struct spipe pipe;
+	int sleep;
 	int pair[2];
 };
 
@@ -267,6 +269,7 @@ void
 bpipe_init(struct bpipe *b, size_t nitem, size_t isize) {
 	spipe_init(&b->pipe, nitem, isize);
 	socketpair(AF_UNIX, SOCK_STREAM, 0, b->pair);
+	b->sleep = 0;
 }
 
 struct bpipe *
@@ -274,6 +277,13 @@ bpipe_create(size_t nitem, size_t isize) {
 	struct bpipe *b = malloc(sizeof(*b));
 	bpipe_init(b, nitem, isize);
 	return b;
+}
+
+void
+bpipe_delete(struct bpipe *b) {
+	close(b->pair[0]);
+	close(b->pair[1]);
+	spipe_fini(&b->pipe);
 }
 
 void
@@ -290,8 +300,7 @@ bpipe_getfd(struct bpipe *b) {
 size_t
 bpipe_readv(struct bpipe *b, struct iovec v[2]) {
 	size_t n;
-	n = spipe_readv(&b->pipe, v);
-	if (n == 0) {
+	if (b->sleep || ((n = spipe_readv(&b->pipe, v) == 0))) {
 		char dummy;
 		ssize_t nbyte;
 tryagain:
@@ -299,11 +308,13 @@ tryagain:
 		if (nbyte == -1) {
 			switch (errno) {
 			case EWOULDBLOCK:
+				b->sleep = 1;
 				return 0;
 			case EINTR:
 				goto tryagain;
 			}
 		}
+		b->sleep = 0;
 		assert(nbyte == sizeof(dummy));
 		assert(dummy == DUMMY_VALUE);
 		n = spipe_readv(&b->pipe, v);

@@ -43,7 +43,9 @@ struct verifier {
 	struct session **clients;
 	int maxfd;
 	struct session *free_sessions;
+	// TODO
 	// map name ==> client
+	// clients array
 };
 
 enum {
@@ -177,18 +179,16 @@ spipe_readb(struct spipe *src, char *dst, size_t len) {
 
 static void
 session_write_buffer(struct session *s, const char *buf, size_t len) {
-	printf("%s:%s:%d\n", __FILE__, __func__, __LINE__);
 	assert(len != 0);
 	if (s->fd == -1) {
 		return;
 	}
-	struct iovec v[2];
 	int fd = s->fd;
-	if (!spipe_readv(s->wpipe, v)) {
+	if (spipe_space(s->wpipe) == 0) {
 		// No data in pipe, try write directly.
 		ssize_t n;
 retry:
-		n = send(fd, buf, len, MSG_DONTWAIT);
+		n = send(fd, buf, len, 0);
 		if (n == -1) {
 			int error = errno;
 			switch (error) {
@@ -216,7 +216,7 @@ retry:
 		spipe_writeb(s->wpipe, buf, len);
 		// TODO Ensure this !
 		struct kevent ev;
-		EV_SET(&ev, fd, EVFILT_WRITE, EV_ENABLE, 0, 0, &s->udata);
+		EV_SET(&ev, fd, EVFILT_WRITE, EV_ADD|EV_CLEAR, 0, 0, &s->udata);
 		kevent(s->eventfd, &ev, 1, NULL, 0, NULL);
 	}
 }
@@ -231,7 +231,6 @@ session_do_auth(struct session *s, const char *msg, size_t len) {
 	s->name.str = malloc(len-6);
 	s->name.len = len-7;
 	strcpy(s->name.str, msg+6);
-	printf("new name[%s].\n", s->name.str);
 	char *sndbuf = s->msgbuf;
 	size_t sndlen = 6 + sizeof(authsucc_string);
 	*((uint32_t*)sndbuf) = sndlen;
@@ -247,6 +246,7 @@ session_do_auth(struct session *s, const char *msg, size_t len) {
 	memcpy(sndbuf+6, s->name.str, s->name.len);
 	memcpy(sndbuf+6+s->name.len, welstr, wellen);
 	*(sndbuf+6+s->name.len+wellen) = '\0';
+	printf("%s\n", sndbuf);
 	verifier_mulcast(s->verifier, sndbuf, sndlen, s);
 
 	s->state = SessionStateNorm;
@@ -254,7 +254,6 @@ session_do_auth(struct session *s, const char *msg, size_t len) {
 
 static void
 session_do_chat(struct session *s, const char *msg, size_t len) {
-	printf("%s:%s:%d\n", __FILE__, __func__, __LINE__);
 	verifier_mulcast(s->verifier, msg, len, s);
 }
 
@@ -271,7 +270,6 @@ memrchr(const char *str, int c, size_t len) {
 
 static void
 session_do_mail(struct session *s, const char *msg, size_t len) {
-	printf("%s:%s:%d\n", __FILE__, __func__, __LINE__);
 	const char *term = memrchr(msg+6, '\0', len-7) + 1;
 	*((uint32_t*)msg) = (uint32_t)(term-msg);
 	struct string peer;
@@ -282,7 +280,6 @@ session_do_mail(struct session *s, const char *msg, size_t len) {
 
 static void
 session_do_work(struct session *s, size_t len) {
-	printf("%s:%s:%d\n", __FILE__, __func__, __LINE__);
 	if (len > s->buflen) {
 		s->buflen = len*2;
 		s->msgbuf = realloc(s->msgbuf, s->buflen);
@@ -343,7 +340,6 @@ session_do_send(struct session *s) {
 
 static void
 session_do_recv(struct session *s) {
-	fprintf(stderr, "%s:%s:%d\n", __FILE__, __func__, __LINE__);
 	if (s->fd == -1) {
 		return;
 	}
@@ -513,16 +509,21 @@ verifier_accept_session(struct verifier *v, int fd) {
 	}
 	assert(s->fd == -1);
 	session_ctor(s, fd);
-	struct kevent ev[2];
-	EV_SET(&ev[0], fd, EVFILT_READ, EV_ADD, 0, 0, &s->udata);
-	EV_SET(&ev[1], fd, EVFILT_WRITE, EV_ADD, 0, 0, &s->udata);
-	kevent(v->eventfd, ev, 2, NULL, 0, NULL);
-	fprintf(stderr, "oops\n");
+	struct kevent ev;
+	EV_SET(&ev, fd, EVFILT_READ, EV_ADD|EV_CLEAR, 0, 0, &s->udata);
+	kevent(v->eventfd, &ev, 1, NULL, 0, NULL);
+	// Enter passive mode.
+	struct iovec vec[2];
+	size_t len = spipe_readv(s->wpipe, vec);
+	assert(len == 0);
 	return s;
 }
 
 static void
 verifier_detach_session(struct verifier *v, int fd, struct session *s) {
+	if (s->state == SessionStateNorm) {
+//		verifier_goodbye(v, &s->name, s);
+	}
 	session_dtor(s);
 	assert(s->fd == -1);
 	struct kevent ev[2];
@@ -533,20 +534,13 @@ verifier_detach_session(struct verifier *v, int fd, struct session *s) {
 
 static void
 verifier_new_client(struct verifier *v, int fd) {
-	fprintf(stderr, "%s:%s:%d\n", __FILE__, __func__, __LINE__);
-	fprintf(stderr, "new client[%d].\n", fd);
+	if ((size_t)fd >= v->nclient) {
+		close(fd);
+		return;
+	}
 	if (fd > v->maxfd) {
 		v->maxfd = fd;
 	}
-	fprintf(stderr, "%s:%s:%d\n", __FILE__, __func__, __LINE__);
-	if ((size_t)fd >= v->nclient) {
-		fprintf(stderr, "%s:%s:%d\n", __FILE__, __func__, __LINE__);
-		size_t nclient = fd + fd/2;
-		v->clients = realloc(v->clients, nclient);
-		memzero(&v->clients[v->nclient], (nclient - v->nclient)*sizeof(void*));
-		v->nclient = nclient;
-	}
-	fprintf(stderr, "%s:%s:%d\n", __FILE__, __func__, __LINE__);
 	verifier_accept_session(v, fd);
 }
 
@@ -582,6 +576,7 @@ listener_accept(struct listener *l) {
 			fprintf(stderr, "new client address %s:%s\n", addr, port);
 		}
 		assert(client_fd != -1);
+		socket_clr_blocking(client_fd);
 		verifier_new_client(l->verifier, client_fd);
 	}
 }
@@ -592,8 +587,9 @@ listener_write(struct listener *l) {
 	assert(!"non reach");
 }
 
+#define MAX_CLIENTS	1024*5
 static void
-makepair(struct listener *l, struct verifier *v, int servefd, int eventfd) {
+makepair(struct listener *l, struct verifier *v, int servefd, int eventfd, size_t nclient) {
 	l->fd = servefd;
 	l->udata.context = l;
 	l->udata.read = (Handler)listener_accept;
@@ -601,9 +597,77 @@ makepair(struct listener *l, struct verifier *v, int servefd, int eventfd) {
 	l->verifier = v;
 
 	v->eventfd = eventfd;
-	v->nclient = 1024;
+	v->nclient = nclient;
 	v->clients = calloc(v->nclient, sizeof(void*));
 	v->maxfd = 0;
+}
+
+enum {
+	EventRead	= 1,
+	EventWrite	= 2,
+};
+
+static void *
+_work(struct bpipe *r) {
+	struct iovec v[2];
+	for (;;) {
+		size_t size = bpipe_readv(r, v);
+		for (size_t i=0; i<2; i++) {
+			uintptr_t *evt = v[i].iov_base;
+			uintptr_t *end = (uintptr_t*)((char*)evt+v[i].iov_len);
+			assert(v[i].iov_len%sizeof(uintptr_t) == 0);
+			while (evt != end) {
+				uintptr_t event = *evt++;
+				struct udata *ud = (void*)(event & ~3);
+				event &= 3;
+				switch (event) {
+				case EventRead:
+					ud->read(ud->context);
+					break;
+				case EventWrite:
+					ud->write(ud->context);
+					break;
+				default:
+					assert(!"currupted event value");
+				}
+			}
+		}
+		bpipe_readn(r, size);
+	}
+	return 0;
+}
+
+#define NWORKER	4
+
+struct dispatcher {
+	size_t nworker;
+	struct bpipe *workers[];
+};
+
+static struct dispatcher *
+dispatcher_create(size_t nworker) {
+	struct dispatcher *d = malloc(sizeof(*d) + nworker*sizeof(void*));
+	d->nworker = nworker;
+	pthread_t tid;
+	while (nworker--) {
+		d->workers[nworker] = bpipe_create(512, sizeof(uintptr_t));
+		pthread_create(&tid, NULL, (void *(*)(void*))_work, d->workers[nworker]);
+		pthread_detach(tid);
+	}
+	return d;
+}
+
+static void
+dispatch(struct dispatcher *d, struct udata *ud, uintptr_t ident, uintptr_t event) {
+	assert(event == EventRead || event == EventWrite);
+	assert(((uintptr_t)ud)%8 == 0);
+	event |= (uintptr_t)ud;
+	// Same fd always fall in same worker.
+	struct bpipe *chan = d->workers[ident % d->nworker];
+	struct iovec v[2];
+	bpipe_writev(chan, v);
+	*((uintptr_t*)v[0].iov_base) = event;
+	bpipe_writen(chan, sizeof(uintptr_t));
 }
 
 static bool g_tobe_terminate;
@@ -629,52 +693,38 @@ install_signals(void) {
 	sigaction(SIGTERM, &sa, NULL);
 }
 
+typedef bool (*Terminator)(void *);
+typedef void (*Dispatcher)(void *ctx, void *udata, uintptr_t ident, uintptr_t event);
+
 static void *
-kevent_loop(int eventfd) {
+kevent_loop(int eventfd, Terminator term, void *tctx, Dispatcher distribute, void *dctx) {
 	struct kevent ev[256];
 	for (;;) {
 		int n = kevent(eventfd, NULL, 0, ev, ARRAY_NELEM(ev), NULL);
 		if (n > 0) {
-			while (n--) {
-				struct udata *ud = ev[n].udata;
-				if ((ev[n].flags & EV_EOF)) {
-					ud->read(ud->context);
-					printf("kevent EV_EOF.\n");
+			int i = n;
+			while (i--) {
+				if ((ev[i].flags & EV_ERROR)) {
 					continue;
+				} else if ((ev[i].flags & EV_EOF) || (ev[i].filter == EVFILT_READ)) {
+					distribute(dctx, ev[i].udata, ev[i].ident, EventRead);
+				} else if (ev[i].filter == EVFILT_WRITE) {
+					distribute(dctx, ev[i].udata, ev[i].ident, EventWrite);
 				}
-				if (ev[n].filter == EVFILT_READ) {
-					ud->read(ud->context);
-				} else if (ev[n].filter == EVFILT_WRITE) {
-					ud->write(ud->context);
-				}
+				assert(ev[i].udata != 0);
 			}
 		}
-		if (tobe_terminate()) {
+		if (term(tctx)) {
 			break;
 		}
 	}
-//	for (;;) {
-//		if (term()) {
-//			break;
-//		}
-//		int n = kevent(eventfd, NULL, 0, ebuf, ARRAY_NELEM(ebuf), NULL);
-//		// struct event {
-//		// 	int fd;
-//		// 	struct udata *udata;
-//		// 	struct kevent *kevent;
-//		// };
-//		// TODO Callback functions may delete udata.
-//		for (int i=0; i<n; i++) {
-//			dispatch(d, &ebuf[i]);
-//		}
-//	}
 	return NULL;
 }
 
 int
 kevent_add(int eventfd, int fd, int filter, void *udata) {
 	struct kevent ev;
-	EV_SET(&ev, fd, filter, EV_ADD, 0, 0, udata);
+	EV_SET(&ev, fd, filter, EV_ADD|EV_CLEAR, 0, 0, udata);
 	return kevent(eventfd, &ev, 1, NULL, 0, NULL);
 }
 
@@ -725,10 +775,11 @@ main(int argc, char *argv[]) {
 	int eventfd = kqueue();
 	struct listener l;
 	struct verifier v;
-	makepair(&l, &v, servefd, eventfd);
+	makepair(&l, &v, servefd, eventfd, MAX_CLIENTS);
 	kevent_add(eventfd, servefd, EVFILT_READ, &l.udata);
 
-	kevent_loop(eventfd);
+	struct dispatcher *d = dispatcher_create(NWORKER);
+	kevent_loop(eventfd, (Terminator)tobe_terminate, NULL, (Dispatcher)dispatch, d);
 
 //	down(regfd, server_name);
 //	close(regfd);

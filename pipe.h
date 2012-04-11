@@ -43,8 +43,11 @@ spipe_writeb(struct spipe *dst, const char *buf, size_t len) {
 
 struct bpipe;
 
+struct bpipe *bpipe_create(size_t nitem, size_t isize);
+
 size_t bpipe_size(void);
-void bpipe_init(struct bpipe *p);
+
+void bpipe_init(struct bpipe *p, size_t nitem, size_t isize);
 void bpipe_ctor(struct bpipe *p);
 void bpipe_dtor(struct bpipe *p);
 void bpipe_fini(struct bpipe *p);

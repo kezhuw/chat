@@ -274,9 +274,9 @@ spipe_writev(struct spipe *s, struct iovec v[2]) {
 	}
 	if (s->guard == NULL) {
 		// No available data, no reader.
-		assert(s->rpos == s->rend);
-		assert(s->rpos == s->wpos);
-		assert(s->wbeg == s->wpos);
+		//assert(s->rpos == s->rend);
+		//assert(s->rpos == s->wpos);
+		//assert(s->wbeg == s->wpos);
 		// Adjust pointers.
 		// TODO
 	}
@@ -295,9 +295,16 @@ struct bpipe {
 };
 
 void
-bpipe_init(struct bpipe *b) {
-	spipe_init(&b->pipe, 1024, 4);
+bpipe_init(struct bpipe *b, size_t nitem, size_t isize) {
+	spipe_init(&b->pipe, nitem, isize);
 	socketpair(AF_UNIX, SOCK_STREAM, 0, b->pair);
+}
+
+struct bpipe *
+bpipe_create(size_t nitem, size_t isize) {
+	struct bpipe *b = malloc(sizeof(*b));
+	bpipe_init(b, nitem, isize);
+	return b;
 }
 
 void

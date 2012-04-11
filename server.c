@@ -376,10 +376,10 @@ session_do_recv(struct session *s) {
 			break;
 		}
 	}
-	size_t len = spipe_readv(s->rpipe, v);
+	size_t len = spipe_readv(r, v);
 	if (len > 4) {
 		size_t msglen = iovec_read_uint32(v);
-		if (msglen <= spipe_space(s->rpipe)) {
+		if (msglen <= spipe_space(r)) {
 			session_do_work(s, msglen);
 		}
 	}

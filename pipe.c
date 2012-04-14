@@ -8,6 +8,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <stdbool.h>
 
 struct data {
 	struct data *next;
@@ -257,6 +258,23 @@ spipe_writev(struct spipe *s, struct iovec v[2]) {
 	v[1].iov_base = s->write->bytes;
 	v[1].iov_len = s->totalsize;
 	return v[0].iov_len + v[1].iov_len;
+}
+
+bool
+spipe_writeb(struct spipe *dst, const char *buf, size_t len) {
+	if (len != 0) {
+		struct iovec v[2];
+		size_t pos = 0;
+		long wake = 0;
+		do {
+			spipe_writev(dst, v);
+			size_t n = iovec_copyin(v, buf+pos, len-pos);
+			wake |= (long)spipe_writen(dst, n);
+			pos += n;
+		} while (len != pos);
+		return (bool)wake;
+	}
+	return false;
 }
 
 struct bpipe {

@@ -509,9 +509,8 @@ verifier_accept_session(struct verifier *v, int fd) {
 	}
 	assert(s->fd == -1);
 	session_ctor(s, fd);
-	struct kevent ev;
-	EV_SET(&ev, fd, EVFILT_READ, EV_ADD|EV_CLEAR, 0, 0, &s->udata);
-	kevent(v->eventfd, &ev, 1, NULL, 0, NULL);
+	// Monitor connection
+	kevent_add(v->eventfd, fd, EVFILT_READ, &s->udata);
 	// Enter passive mode.
 	struct iovec vec[2];
 	size_t len = spipe_readv(s->wpipe, vec);
@@ -526,10 +525,8 @@ verifier_detach_session(struct verifier *v, int fd, struct session *s) {
 	}
 	session_dtor(s);
 	assert(s->fd == -1);
-	struct kevent ev[2];
-	EV_SET(&ev[0], fd, EVFILT_READ, EV_DELETE, 0, 0, 0);
-	EV_SET(&ev[0], fd, EVFILT_WRITE, EV_DELETE, 0, 0, 0);
-	kevent(v->eventfd, ev, 2, NULL, 0, NULL);
+	kevent_del(v->eventfd, fd, EVFILT_READ);
+	kevent_del(v->eventfd, fd, EVFILT_WRITE);
 }
 
 static void

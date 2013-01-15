@@ -509,12 +509,12 @@ verifier_accept_session(struct verifier *v, int fd) {
 	}
 	assert(s->fd == -1);
 	session_ctor(s, fd);
-	// Monitor connection
-	kevent_add(v->eventfd, fd, EVFILT_READ, &s->udata);
 	// Enter passive mode.
 	struct iovec vec[2];
 	size_t len = spipe_readv(s->wpipe, vec);
 	assert(len == 0);
+	// Monitor connection
+	kevent_add(v->eventfd, fd, EVFILT_READ, &s->udata);
 	return s;
 }
 

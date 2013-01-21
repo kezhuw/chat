@@ -2,6 +2,7 @@
 #include "pipe.h"
 #include "define.h"
 
+#include <sys/types.h>	// for kevent struct
 #include <sys/event.h>
 #include <unistd.h>
 

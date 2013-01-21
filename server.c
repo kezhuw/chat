@@ -2,6 +2,7 @@
 #include "pipe.h"
 #include "define.h"
 
+#include <sys/types.h>	// for kevent struct
 #include <sys/socket.h>
 #include <sys/event.h>
 #include <sys/uio.h>	// for readv, writev
@@ -177,6 +178,20 @@ spipe_readb(struct spipe *src, char *dst, size_t len) {
 	return pos;
 }
 
+int
+kevent_add(int eventfd, int fd, int filter, void *udata) {
+	struct kevent ev;
+	EV_SET(&ev, fd, filter, EV_ADD|EV_CLEAR, 0, 0, udata);
+	return kevent(eventfd, &ev, 1, NULL, 0, NULL);
+}
+
+int
+kevent_del(int eventfd, int fd, int filter) {
+	struct kevent ev;
+	EV_SET(&ev, fd, filter, EV_DELETE, 0, 0, NULL);
+	return kevent(eventfd, &ev, 1, NULL, 0, NULL);
+}
+
 static void
 session_write_buffer(struct session *s, const char *buf, size_t len) {
 	assert(len != 0);
@@ -255,17 +270,6 @@ session_do_auth(struct session *s, const char *msg, size_t len) {
 static void
 session_do_chat(struct session *s, const char *msg, size_t len) {
 	verifier_mulcast(s->verifier, msg, len, s);
-}
-
-static const char *
-memrchr(const char *str, int c, size_t len) {
-	const char *end = str+len;
-	while (end-- > str) {
-		if (*end == c) {
-			return end;
-		}
-	}
-	return NULL;
 }
 
 static void
@@ -716,20 +720,6 @@ kevent_loop(int eventfd, Terminator term, void *tctx, Dispatcher distribute, voi
 		}
 	}
 	return NULL;
-}
-
-int
-kevent_add(int eventfd, int fd, int filter, void *udata) {
-	struct kevent ev;
-	EV_SET(&ev, fd, filter, EV_ADD|EV_CLEAR, 0, 0, udata);
-	return kevent(eventfd, &ev, 1, NULL, 0, NULL);
-}
-
-int
-kevent_del(int eventfd, int fd, int filter) {
-	struct kevent ev;
-	EV_SET(&ev, fd, filter, EV_DELETE, 0, 0, NULL);
-	return kevent(eventfd, &ev, 1, NULL, 0, NULL);
 }
 
 int

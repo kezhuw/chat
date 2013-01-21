@@ -1,6 +1,7 @@
 #include "util.h"
 
 #include <sys/socket.h>
+#include <netinet/in.h>		// for IPPROTO_TCP
 #include <sys/ioctl.h>
 #include <unistd.h>
 #include <netdb.h>

@@ -357,7 +357,7 @@ static void
 input_read(struct input *in) {
 	char buf[2048];
 	for (;;) {
-		ssize_t n = read(in->fd, buf, sizeof(buf));
+		ssize_t n = read(in->fd, buf, sizeof(buf)-1);
 		if (n == -1) {
 			int error = errno;
 			switch (error) {
@@ -371,8 +371,7 @@ input_read(struct input *in) {
 			}
 		}
 		assert(n != -1);
-		assert((size_t)n < sizeof(buf));	// To simplify process.
-		buf[n-1] = 0;
+		buf[n] = 0;
 		client_work(in->out, buf);
 	}
 }

@@ -601,6 +601,7 @@ makepair(struct listener *l, struct verifier *v, int servefd, int eventfd, size_
 	v->nclient = nclient;
 	v->clients = calloc(v->nclient, sizeof(void*));
 	v->maxfd = 0;
+	v->free_sessions = NULL;
 }
 
 enum {

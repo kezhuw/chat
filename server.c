@@ -229,10 +229,7 @@ retry:
 	}
 	if (len != 0) {
 		spipe_writeb(s->wpipe, buf, len);
-		// TODO Ensure this !
-		struct kevent ev;
-		EV_SET(&ev, fd, EVFILT_WRITE, EV_ADD|EV_CLEAR, 0, 0, &s->udata);
-		kevent(s->eventfd, &ev, 1, NULL, 0, NULL);
+		kevent_add(s->eventfd, fd, EVFILT_WRITE, &s->udata);
 	}
 }
 

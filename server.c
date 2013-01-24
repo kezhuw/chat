@@ -364,7 +364,7 @@ session_do_recv(struct session *s) {
 				verifier_detach_session(s->verifier, s->fd, s);
 				s->fd = -1;
 			case EWOULDBLOCK:
-				break;
+				goto out_for;
 			case EINTR:
 				continue;
 			}
@@ -380,6 +380,7 @@ session_do_recv(struct session *s) {
 			break;
 		}
 	}
+out_for:
 	size_t len = spipe_readv(r, v);
 	if (len > 4) {
 		size_t msglen = iovec_read_uint32(v);

@@ -377,7 +377,7 @@ session_do_recv(struct session *s) {
 			break;
 		}
 	}
-out_for:
+out_for:;
 	size_t len = spipe_readv(r, v);
 	if (len > 4) {
 		size_t msglen = iovec_read_uint32(v);

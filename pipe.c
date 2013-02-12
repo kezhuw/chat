@@ -152,21 +152,6 @@ spipe_readn(struct spipe *s, size_t n) {
 	__sync_sub_and_fetch(&s->writesize, n);
 }
 
-#define __sync_acquire_lock(ptr)	\
-do {					\
-	bool b;				\
-	while (!(b = __sync_bool_compare_and_swap((ptr), 0, 1))) {	\
-	}				\
-	assert(b == true);		\
-} while(0)
-
-#define __sync_release_lock(ptr)	\
-do {					\
-	bool b = __sync_bool_compare_and_swap((ptr), 1, 0);	\
-	assert(b == true);		\
-} while(0)
-
-
 static inline char *
 spipe_guard(struct spipe *s) {
 	return __sync_val_compare_and_swap(&s->guard, s->rpos, NULL);
@@ -357,56 +342,3 @@ size_t
 bpipe_writev(struct bpipe *b, struct iovec v[2]) {
 	return spipe_writev(&b->pipe, v);
 }
-//
-//struct sring {
-//	char *wpos;
-//	char *wend;
-//	char *rpos;
-//	char *rend;
-//
-//
-//	bool lock;
-//	char *wpos;
-//	char *wend;
-//	char *rpos;
-//	size_t wlen;
-//	size_t rlen;
-//	size_t bsize;
-//	char *guard;
-//	char bytes[];
-//};
-//
-//static void
-//sring_readn(struct sring *s, size_t n) {
-//}
-//
-//static bool
-//sring_writen(struct sring *s, size_t n) {
-//	size_t wlen = s->wend - s->wpos;
-//	if (n < wlen) {
-//		s->wpos += n;
-//	}
-//	__sync_acquire_lock(&s->lock);
-//	__sync_release_lock(&s->lock);
-//	if (s->wpos >= rpos) {
-//	}
-//}
-//
-//static void
-//sring_writev(struct sring *s, struct iovec v[2]) {
-//	__sync_acquire_lock(&s->lock);
-//	char *rpos = s->rpos;
-//	char *rend = s->rend;
-//	__sync_release_lock(&s->lock);
-//	if (s->wpos >= rpos) {
-//		s->wend = s->bytes + s->bsize;
-//		v[1].iov_base = s->bytes;
-//		v[1].iov_len = rpos - s->bytes;
-//	} else {
-//		s->wend = s->rpos;
-//		v[1] = {NULL, NULL};
-//	}
-//	v[0].iov_base = s->wpos;
-//	v[0].iov_len = s->wend - s->wpos;
-//	return (v[0].iov_base + v[1].iov_base);
-//}

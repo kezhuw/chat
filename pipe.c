@@ -148,7 +148,6 @@ spipe_readn(struct spipe *s, size_t n) {
 			s->rpos = s->first->bytes;
 			spipe_free_data(s, d1);
 		}
-		spipe_free_data(s, d0);
 	}
 	__sync_sub_and_fetch(&s->writesize, n);
 }

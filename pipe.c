@@ -242,7 +242,6 @@ spipe_writev(struct spipe *s, struct iovec v[2]) {
 		s->first->next = s->write;
 		s->wbeg = s->wpos = s->rpos = s->first->bytes;
 		s->wend = (char*)s->first + s->chunksize;
-		s->rpos = s->wbeg;
 		// If reader call spipe_guard(s) here, spipe_readv will return
 		// 0 as expected.
 		__sync_bool_compare_and_swap(&s->guard, GUARD_INVAL, s->rpos);

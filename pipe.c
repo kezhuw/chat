@@ -285,6 +285,7 @@ bpipe_delete(struct bpipe *b) {
 	close(b->pair[0]);
 	close(b->pair[1]);
 	spipe_fini(&b->pipe);
+	free(b);
 }
 
 void

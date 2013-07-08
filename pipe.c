@@ -301,7 +301,7 @@ bpipe_getfd(struct bpipe *b) {
 size_t
 bpipe_readv(struct bpipe *b, struct iovec v[2]) {
 	size_t n;
-	if (b->sleep || ((n = spipe_readv(&b->pipe, v) == 0))) {
+	if (b->sleep || ((n = spipe_readv(&b->pipe, v)) == 0)) {
 		char dummy;
 		ssize_t nbyte;
 tryagain:
